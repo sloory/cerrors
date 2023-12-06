@@ -1,5 +1,8 @@
 package cerrors
 
+// check interface implementation
+var _ error = (*opaqueError)(nil)
+
 type opaqueError struct {
 	cause   error
 	message string
