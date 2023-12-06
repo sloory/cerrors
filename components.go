@@ -34,7 +34,7 @@ func enrichWithComponents(ctx context.Context, err error) error {
 		return err
 	}
 
-	comps := getComponents(ctx)
+	comps := getCtxComponents(ctx)
 	if len(comps) == 0 {
 		return err
 	}
@@ -46,7 +46,7 @@ func (w *withComponentsError) Error() string        { return w.cause.Error() }
 func (w *withComponentsError) Unwrap() error        { return w.cause }
 func (w *withComponentsError) Components() []string { return w.components }
 
-func getComponents(ctx context.Context) []string {
+func getCtxComponents(ctx context.Context) []string {
 	c, ok := ctx.Value(componentsKey).([]string)
 	if !ok {
 		return nil
@@ -56,7 +56,7 @@ func getComponents(ctx context.Context) []string {
 }
 
 func InComponent(ctx context.Context, component string) context.Context {
-	components := getComponents(ctx)
+	components := getCtxComponents(ctx)
 	components = append(components, component)
 
 	return context.WithValue(ctx, componentsKey, components)

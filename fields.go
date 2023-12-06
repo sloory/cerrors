@@ -11,6 +11,9 @@ type withFields interface {
 	AddFields(fields map[string]interface{})
 }
 
+// check interface implementation
+var _ withFields = (*withFieldsError)(nil)
+
 type withFieldsError struct {
 	cause  error
 	fields map[string]interface{}
