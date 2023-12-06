@@ -8,7 +8,7 @@ import (
 type key int
 
 const (
-	componentsKey key = iota
+	componentsKey key = 1
 )
 
 type withComponents interface {

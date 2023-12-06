@@ -1,95 +1,107 @@
 package cerrors
 
 import (
-	//	"context"
 	"context"
 	"errors"
 	"reflect"
 	"testing"
 )
 
-var (
-	testFields = map[string]interface{}{
-		"key": "value",
-	}
-	// testCtx = log.WithFields(context.Background(), testFields)
-)
+func TestEnrich(t *testing.T) {
+	t.Run("nil error", func(t *testing.T) {
+		err := Enrich(context.Background(), nil)
+		if err != nil {
+			t.Error("not nil error")
+		}
+	})
 
-// func TestEnrich(t *testing.T) {
-// 	ctx := context.Background()
+	t.Run("stacktrace for nil context", func(t *testing.T) {
+		err := Enrich(nil, errors.New("err"))
+		requireStack(t, err)
+	})
 
-// 	t.Run("nil_err", func(t *testing.T) {
-// 		err := Enrich(ctx, nil)
+	t.Run("stacktrace", func(t *testing.T) {
+		err := Enrich(context.Background(), errors.New("err"))
+		requireStack(t, err)
+	})
 
-// 		require.Equal(t, nil, err)
-// 	})
+	t.Run("ctx without fields", func(t *testing.T) {
+		err := Enrich(context.Background(), errors.New("err"))
 
-// 	t.Run("ctx_without_fields", func(t *testing.T) {
-// 		err := Enrich(ctx, errors.New("err"))
+		var fieldsErr withFields
+		if errors.As(err, &fieldsErr) {
+			t.Error("expect error without fields")
+		}
+	})
 
-// 		requireNoFields(t, err)
-// 		requireStack(t, err)
-// 	})
+	t.Run("ctx with fields", func(t *testing.T) {
+		ctx := WithCtxField(context.Background(), "itemId", 11)
+		ctx = WithCtxField(ctx, "requestId", "some text value")
 
-// 	expFields := map[string]interface{}{
-// 		"itemID":    1,
-// 		"requestID": 2,
-// 	}
+		err := Enrich(ctx, errors.New("err"))
 
-// 	ctxWithFields := log.WithFields(ctx, expFields)
+		var fieldsErr withFields
+		if !errors.As(err, &fieldsErr) {
+			t.Error("expect error with fields")
+		}
 
-// 	t.Run("ctx_test", func(t *testing.T) {
-// 		err := Enrich(ctxWithFields, errors.New("err"))
-// 		err = Enrich(ctxWithFields, err)
+		expected := map[string]interface{}{
+			"itemId":    11,
+			"requestId": "some text value",
+		}
 
-// 		fieldsErr := requireFields(t, err)
-// 		require.Equal(t, expFields, fieldsErr.Fields())
+		if !reflect.DeepEqual(expected, fieldsErr.Fields()) {
+			t.Errorf("unexpected fields: expected %v, got %v", expected, fieldsErr.Fields())
+		}
+	})
 
-// 		i := 0
-// 		for err := err; err != nil; err = errors.Unwrap(err) {
-// 			i++
-// 		}
+	t.Run("several calls - errors wrap not grow", func(t *testing.T) {
+		ctx := WithCtxField(context.Background(), "itemId", 11)
+		ctx = InComponent(ctx, "handler")
 
-// 		require.Equalf(t, 3, i, "Ошибка должна быть обернута только в контекст и стэктрейс.")
-// 	})
+		err := Enrich(ctx, errors.New("err"))
+		err = Enrich(ctx, err)
+		err = Enrich(ctx, err)
 
-// 	t.Run("stacktrace_test", func(t *testing.T) {
-// 		err := Enrich(ctxWithFields, errors.New("err"))
+		wrapsCount := 0
+		for err := err; err != nil; err = errors.Unwrap(err) {
+			wrapsCount++
+		}
 
-// 		var stErr stackTrace
+		// original, withStack, withFields, withComponents
+		expected := 4
+		if wrapsCount != expected {
+			t.Errorf("unexpected wraps: expected %d, got %d", expected, wrapsCount)
+		}
+	})
 
-// 		require.ErrorAs(t, err, &stErr)
+	// t.Run("stacktrace_test", func(t *testing.T) {
+	// 	err := Enrich(ctxWithFields, errors.New("err"))
 
-// 		t.Logf("%+v", stErr.StackTrace())
-// 		require.Len(t, stErr.StackTrace(), 3)
-// 	})
+	// 	var stErr stackTrace
 
-// 	expFields = map[string]interface{}{
-// 		"itemID":    1,
-// 		"requestID": 2,
-// 		"phoneID":   3,
-// 	}
+	// 	require.ErrorAs(t, err, &stErr)
 
-// 	ctxWithFields = log.WithFields(ctxWithFields, map[string]interface{}{
-// 		"phoneID": 3,
-// 	})
+	// 	t.Logf("%+v", stErr.StackTrace())
+	// 	require.Len(t, stErr.StackTrace(), 3)
+	// })
 
-// 	t.Run("ext_ctx_test", func(t *testing.T) {
-// 		err := Enrich(ctxWithFields, errors.New("err"))
+	// expFields = map[string]interface{}{
+	// 	"itemID":    1,
+	// 	"requestID": 2,
+	// 	"phoneID":   3,
+	// }
 
-// 		fieldsErr := requireFields(t, err)
-// 		require.EqualValues(t, expFields, fieldsErr.Fields())
-// 	})
-// }
+	// ctxWithFields = log.WithFields(ctxWithFields, map[string]interface{}{
+	// 	"phoneID": 3,
+	// })
+}
 
 func TestWithStack(t *testing.T) {
 
 	t.Run("with stack", func(t *testing.T) {
 		err := WithStack(errors.New("err"))
-		var errWithStack stackTrace
-		if !errors.As(err, &errWithStack) || len(errWithStack.StackTrace()) == 0 {
-			t.Error("after EnrichStack error must have stack")
-		}
+		requireStack(t, err)
 	})
 
 	t.Run("nil", func(t *testing.T) {
@@ -172,55 +184,11 @@ func TestInComponent(t *testing.T) {
 	})
 }
 
-// // func TestEnrichContext(t *testing.T) {
-// // 	var err error
-
-// // 	ctx := context.Background()
-
-// // 	t.Run("nil_err", func(t *testing.T) {
-// // 		got := EnrichContext(ctx, err)
-
-// // 		assert.Equal(t, got, context.Background())
-// // 	})
-
-// // 	err = errors.New("error")
-
-// // 	t.Run("not_fields_err", func(t *testing.T) {
-// // 		got := EnrichContext(ctx, err)
-
-// // 		assert.Equal(t, got, context.Background())
-// // 	})
-
-// // 	expFields := map[string]interface{}{
-// // 		"itemID":    1,
-// // 		"requestID": 2,
-// // 	}
-
-// // 	ctxWithFields := log.WithFields(ctx, expFields)
-
-// // 	err = Enrich(ctxWithFields, err)
-
-// // 	t.Run("fields_err", func(t *testing.T) {
-// // 		got := EnrichContext(ctx, err)
-
-// // 		f := log.Fields(got)
-// // 		assert.Equal(t, expFields, f)
-// // 	})
-// // }
-
 func TestWithField(t *testing.T) {
 	t.Run("ordinal error", func(t *testing.T) {
 		err := WithField(errors.New("err"), "some key", "field value")
 
-		var fieldsErr withFields
-		if !errors.As(err, &fieldsErr) {
-			t.Error("expect error with fields")
-		}
-
-		expectedFields := map[string]any{"some key": "field value"}
-		if !reflect.DeepEqual(expectedFields, fieldsErr.Fields()) {
-			t.Errorf("unexpected fields: expected %v, got %v", expectedFields, fieldsErr.Fields())
-		}
+		requireFields(t, err, map[string]any{"some key": "field value"})
 	})
 
 	t.Run("nil", func(t *testing.T) {
@@ -238,15 +206,7 @@ func TestWithField(t *testing.T) {
 
 		err2 := WithField(err1, "key2", "value2")
 
-		var fieldsErr withFields
-		if !errors.As(err2, &fieldsErr) {
-			t.Error("expect error with fields")
-		}
-
-		expectedFields := map[string]any{"key1": "value1", "key2": "value2"}
-		if !reflect.DeepEqual(expectedFields, fieldsErr.Fields()) {
-			t.Errorf("unexpected fields: expected %v, got %v", expectedFields, fieldsErr.Fields())
-		}
+		requireFields(t, err2, map[string]any{"key1": "value1", "key2": "value2"})
 	})
 
 	t.Run("previous fields overwritten", func(t *testing.T) {
@@ -261,19 +221,11 @@ func TestWithField(t *testing.T) {
 
 		err2 := WithField(err1, "key2", "NEW")
 
-		var fieldsErr withFields
-		if !errors.As(err2, &fieldsErr) {
-			t.Error("expect error with fields")
-		}
-
-		expectedFields := map[string]any{
+		requireFields(t, err2, map[string]any{
 			"key1": "value1",
 			"key2": "NEW",
 			"key3": "value4",
-		}
-		if !reflect.DeepEqual(expectedFields, fieldsErr.Fields()) {
-			t.Errorf("unexpected fields: expected %v, got %v", expectedFields, fieldsErr.Fields())
-		}
+		})
 	})
 }
 
@@ -305,21 +257,20 @@ func TestFields(t *testing.T) {
 	})
 }
 
-// func requireStack(t *testing.T, err error) {
-// 	var stackErr stackTrace
-// 	require.ErrorAs(t, err, &stackErr)
-// }
+func requireStack(t *testing.T, err error) {
+	var errWithStack stackTrace
+	if !errors.As(err, &errWithStack) || len(errWithStack.StackTrace()) == 0 {
+		t.Error("after WithStack error must have stack")
+	}
+}
 
-// func requireFields(t *testing.T, err error) withFields {
-// 	var fieldsErr withFields
-// 	require.ErrorAs(t, err, &fieldsErr)
+func requireFields(t *testing.T, err error, expected map[string]any) {
+	var fieldsErr withFields
+	if !errors.As(err, &fieldsErr) {
+		t.Error("expect error with fields")
+	}
 
-// 	return fieldsErr
-// }
-
-// func requireNoFields(t *testing.T, err error) {
-// 	var fieldsErr withFields
-
-// 	errors.As(err, &fieldsErr)
-// 	require.Equal(t, nil, fieldsErr)
-// }
+	if !reflect.DeepEqual(expected, fieldsErr.Fields()) {
+		t.Errorf("unexpected fields: expected %v, got %v", expected, fieldsErr.Fields())
+	}
+}

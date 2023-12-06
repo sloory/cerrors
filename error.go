@@ -11,9 +11,7 @@ func Enrich(ctx context.Context, err error) error {
 		return newWithStack(err)
 	}
 
-	return enrichWithComponents(ctx, newWithStack(err))
-	// newWithFields( // replace on enrichWithFields
-	// ),
+	return enrichWithComponents(ctx, enrichWithFields(ctx, newWithStack(err)))
 }
 
 func WithStack(err error) error {
@@ -85,12 +83,3 @@ func Components(err error) []string {
 
 	return nil
 }
-
-// func EnrichContext(ctx context.Context, err error) context.Context {
-// 	var errFields withFields
-// 	if errors.As(err, &errFields) {
-// 		return log.WithFields(ctx, errFields.Fields())
-// 	}
-
-// 	return ctx
-// }
