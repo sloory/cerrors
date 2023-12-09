@@ -75,26 +75,27 @@ func TestEnrich(t *testing.T) {
 		}
 	})
 
-	// t.Run("stacktrace_test", func(t *testing.T) {
-	// 	err := Enrich(ctxWithFields, errors.New("err"))
+	innerFunc1 := func() error {
+		return Enrich(context.Background(), errors.New("err"))
+	}
 
-	// 	var stErr stackTrace
+	innerFunc := func() error {
+		return innerFunc1()
+	}
 
-	// 	require.ErrorAs(t, err, &stErr)
+	t.Run("stacktrace length", func(t *testing.T) {
+		err := innerFunc()
 
-	// 	t.Logf("%+v", stErr.StackTrace())
-	// 	require.Len(t, stErr.StackTrace(), 3)
-	// })
+		var stErr stackTrace
+		if !errors.As(err, &stErr) {
+			t.Error("expect error with stacktrace")
+		}
 
-	// expFields = map[string]interface{}{
-	// 	"itemID":    1,
-	// 	"requestID": 2,
-	// 	"phoneID":   3,
-	// }
-
-	// ctxWithFields = log.WithFields(ctxWithFields, map[string]interface{}{
-	// 	"phoneID": 3,
-	// })
+		expected := 5
+		if len(stErr.StackTrace()) != expected {
+			t.Errorf("unexpected stack length: expected %d, got %d", expected, len(stErr.StackTrace()))
+		}
+	})
 }
 
 func TestWithStack(t *testing.T) {
