@@ -11,6 +11,7 @@ import (
 
 type stackTrace interface {
 	error
+	fmt.Formatter
 	StackTrace() StackTrace
 }
 
@@ -40,6 +41,20 @@ func (w *withStack) Error() string          { return w.cause.Error() }
 func (w *withStack) Cause() error           { return w.cause }
 func (w *withStack) Unwrap() error          { return w.cause }
 func (w *withStack) StackTrace() StackTrace { return w.stack }
+
+func (w *withStack) Format(s fmt.State, verb rune) {
+	switch verb {
+	case 'v':
+		if s.Flag('+') {
+			fmt.Fprintf(s, "%+v", w.Cause())
+			w.stack.Format(s, verb)
+			return
+		}
+		io.WriteString(s, w.Error())
+	case 's':
+		io.WriteString(s, w.Error())
+	}
+}
 
 // Frame represents a program counter inside a stack frame.
 // For historical reasons if Frame is interpreted as a uintptr
@@ -85,14 +100,13 @@ func (f Frame) name() string {
 func (f Frame) Format(s fmt.State, verb rune) {
 	switch verb {
 	case 's':
-		switch {
-		case s.Flag('+'):
+		if s.Flag('+') {
 			io.WriteString(s, f.name())
 			io.WriteString(s, "\n\t")
 			io.WriteString(s, f.file())
-		default:
-			io.WriteString(s, path.Base(f.file()))
+			return
 		}
+		io.WriteString(s, path.Base(f.file()))
 	case 'v':
 		f.Format(s, 's')
 		io.WriteString(s, ":")
