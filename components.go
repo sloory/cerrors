@@ -3,6 +3,7 @@ package cerrors
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 type key int
@@ -13,6 +14,8 @@ const (
 
 type withComponents interface {
 	error
+	fmt.Formatter
+	
 	Components() []string
 }
 
@@ -45,6 +48,9 @@ func enrichWithComponents(ctx context.Context, err error) error {
 func (w *withComponentsError) Error() string        { return w.cause.Error() }
 func (w *withComponentsError) Unwrap() error        { return w.cause }
 func (w *withComponentsError) Components() []string { return w.components }
+func (w *withComponentsError) Format(f fmt.State, verb rune) {
+	fmt.Printf(fmt.FormatString(f, verb), w.cause)
+}
 
 func getCtxComponents(ctx context.Context) []string {
 	c, ok := ctx.Value(componentsKey).([]string)

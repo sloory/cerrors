@@ -2,10 +2,13 @@ package cerrors
 
 import (
 	"errors"
+	"fmt"
 )
 
 type withFields interface {
 	error
+	fmt.Formatter
+
 	Fields() map[string]interface{}
 	AddField(name string, value any)
 	AddFields(fields map[string]interface{})
@@ -45,3 +48,6 @@ func (w *withFieldsError) AddFields(fields map[string]interface{}) {
 func (w *withFieldsError) Error() string                  { return w.cause.Error() }
 func (w *withFieldsError) Unwrap() error                  { return w.cause }
 func (w *withFieldsError) Fields() map[string]interface{} { return w.fields }
+func (w *withFieldsError) Format(f fmt.State, verb rune) {
+	fmt.Printf(fmt.FormatString(f, verb), w.cause)
+}
